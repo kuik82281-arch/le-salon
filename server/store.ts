@@ -82,7 +82,7 @@ async function askQwen<T>(system: string, user: string, examples: [string, unkno
     const res = await fetcher(`${OLLAMA}/api/chat`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(60_000),
       body: JSON.stringify({ model: QWEN, stream: false, format: 'json', options: { temperature: 0 }, messages }),
     });
     if (!res.ok) return null;
@@ -133,18 +133,23 @@ export async function requestSong(input: { song: string; by: 'ai' | 'user'; note
   );
   const index = typeof pick?.index === 'number' ? pick.index : Number(pick?.index);
   if (index === -1) throw new SalonError(`"${song}" is not in the archive`);
-  const chosen = Number.isInteger(index) && candidates[index] ? candidates[index] : candidates[0];
-  const url = new URL(chosen.downloadUrl, ARCHIVE).toString();
-  const res = await fetcher(url, { signal: AbortSignal.timeout(20_000) });
-  if (!res.ok) throw new SalonError('the score could not be downloaded');
-  const bytes = await res.arrayBuffer();
-  if (bytes.byteLength > MIDI_MAX_BYTES) throw new SalonError('that score is too large');
-  let score: Score;
-  try {
-    score = parseMIDI(bytes, song, url).score;
-  } catch (error) {
-    throw new SalonError(error instanceof Error ? error.message : String(error));
+  const first = Number.isInteger(index) && candidates[index] ? index : 0;
+  // Some archive files are broken (odd timing, truncated): the next candidates are tried before giving up.
+  const order = [first, ...candidates.keys()].filter((i, k, all) => all.indexOf(i) === k).slice(0, 3);
+  let failure = 'the score could not be downloaded';
+  for (const i of order) {
+    const url = new URL(candidates[i].downloadUrl, ARCHIVE).toString();
+    try {
+      const res = await fetcher(url, { signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) throw new Error('the score could not be downloaded');
+      const bytes = await res.arrayBuffer();
+      if (bytes.byteLength > MIDI_MAX_BYTES) throw new Error('that score is too large');
+      const score: Score = parseMIDI(bytes, song, url).score;
+      if (score.notes.length > REQUEST_MAX_NOTES) throw new Error('that score is too long');
+      return keep({ id: `pf-${now.getTime().toString(36)}`, by: input.by, via: 'qwen', title: song, note: String(input.note ?? '').trim().slice(0, 140), createdAt: now.toISOString(), score, sourceUrl: url });
+    } catch (error) {
+      failure = error instanceof Error ? error.message : String(error);
+    }
   }
-  if (score.notes.length > REQUEST_MAX_NOTES) throw new SalonError('that score is too long');
-  return keep({ id: `pf-${now.getTime().toString(36)}`, by: input.by, via: 'qwen', title: song, note: String(input.note ?? '').trim().slice(0, 140), createdAt: now.toISOString(), score, sourceUrl: url });
+  throw new SalonError(failure);
 }
