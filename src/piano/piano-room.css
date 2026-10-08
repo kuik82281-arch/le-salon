@@ -1,0 +1,134 @@
+/* 琴室 (PianoRoom.tsx): black stage, gold hairlines, a serif voice; almost nothing on screen but the piano in its light.
+   Ink #e9dcc3 on black, gold #c9a35a. Prefix pr-. */
+.pr-page {
+  --pr-gold: #c9a35a;
+  --pr-ink: #e9dcc3;
+  --pr-dim: rgb(233 220 195 / 55%);
+  --pr-serif: "Bodoni 72", Didot, "Songti SC", "Noto Serif SC", Georgia, serif;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #040302;
+  color: var(--pr-ink);
+  font-family: var(--pr-serif);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.pr-stage { position: absolute; inset: 0; touch-action: none; }
+.pr-stage canvas { display: block; }
+.pr-loading { position: absolute; inset: 50% 0 auto; margin: 0; color: var(--pr-dim); font: italic 14px/1 var(--pr-serif); letter-spacing: .3em; text-align: center; animation: pr-breathe 1.8s ease-in-out infinite; }
+@keyframes pr-breathe { 50% { opacity: .35; } }
+
+/* the top: a gold ring to go back, the room's name */
+.pr-top { position: absolute; inset: 0 0 auto; z-index: 3; display: flex; align-items: center; justify-content: space-between; padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 0; pointer-events: none; }
+.pr-top > * { pointer-events: auto; }
+.pr-ring { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 1px solid rgb(201 163 90 / 55%); border-radius: 50%; background: rgb(4 3 2 / 35%); color: var(--pr-gold); cursor: pointer; }
+.pr-ring svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.pr-ring--ghost { visibility: hidden; }
+.pr-title { display: grid; justify-items: center; gap: 3px; }
+.pr-title b { color: var(--pr-ink); font: 400 19px/1 var(--pr-serif); letter-spacing: .5em; text-indent: .5em; }
+.pr-title small { color: var(--pr-gold); font: italic 11px/1 var(--pr-serif); letter-spacing: .32em; text-transform: uppercase; }
+
+/* what is playing: a programme line under the stage */
+.pr-now {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 34px);
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  width: min(78vw, 360px);
+  translate: -50% 0;
+  text-align: center;
+  transition: translate .45s cubic-bezier(.2, .8, .2, 1), opacity .3s;
+}
+.pr-now.is-raised { translate: -50% -210px; opacity: .55; }
+.pr-now small { color: var(--pr-gold); font: italic 11px/1.3 var(--pr-serif); letter-spacing: .26em; text-transform: uppercase; }
+.pr-now b { margin-top: 6px; font: 400 22px/1.2 var(--pr-serif); letter-spacing: .08em; }
+.pr-now p { margin: 6px 0 0; color: var(--pr-dim); font: italic 13px/1.5 var(--pr-serif); }
+.pr-line { position: relative; width: 100%; height: 1px; margin-top: 14px; background: rgb(201 163 90 / 22%); }
+.pr-line i { position: absolute; inset: 0 auto 0 0; background: var(--pr-gold); box-shadow: 0 0 8px rgb(201 163 90 / 70%); transition: width .25s linear; }
+.pr-now-row { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 8px; color: var(--pr-dim); font: 11px/1 var(--pr-serif); letter-spacing: .12em; font-variant-numeric: tabular-nums; }
+.pr-play { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid rgb(201 163 90 / 60%); border-radius: 50%; background: transparent; color: var(--pr-gold); cursor: pointer; }
+.pr-play svg { width: 14px; height: 14px; fill: currentColor; }
+
+/* he played while the sound was locked: a quiet invitation in the light */
+.pr-listen {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  z-index: 4;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 26px 34px;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(4 3 2 / 70%), transparent);
+  color: var(--pr-ink);
+  font-family: var(--pr-serif);
+  cursor: pointer;
+  translate: -50% -50%;
+}
+.pr-listen span { color: var(--pr-gold); font: italic 13px/1 var(--pr-serif); letter-spacing: .2em; }
+.pr-listen b { font: 400 18px/1 var(--pr-serif); letter-spacing: .5em; text-indent: .5em; animation: pr-breathe 2.4s ease-in-out infinite; }
+
+/* the one button */
+.pr-fab { position: absolute; right: 20px; bottom: calc(env(safe-area-inset-bottom, 0px) + 28px); z-index: 5; display: grid; place-items: center; width: 52px; height: 52px; padding: 0; border: 1px solid var(--pr-gold); border-radius: 50%; background: radial-gradient(circle at 35% 30%, rgb(201 163 90 / 22%), rgb(4 3 2 / 80%)); color: var(--pr-gold); cursor: pointer; box-shadow: 0 0 22px rgb(201 163 90 / 18%); transition: transform .3s; }
+.pr-fab svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.pr-fab.is-on { transform: rotate(90deg); }
+
+/* the panel that floats up */
+.pr-sheet {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: 4;
+  width: min(100%, 520px);
+  max-height: 62dvh;
+  overflow-y: auto;
+  padding: 24px 22px calc(env(safe-area-inset-bottom, 0px) + 96px);
+  border-top: 1px solid rgb(201 163 90 / 35%);
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(180deg, rgb(16 12 9 / 94%), rgb(6 5 4 / 97%));
+  box-shadow: 0 -20px 50px rgb(0 0 0 / 60%);
+  translate: -50% 105%;
+  transition: translate .5s cubic-bezier(.2, .85, .2, 1);
+  scrollbar-width: none;
+}
+.pr-sheet.is-open { translate: -50% 0; }
+.pr-sheet h2 { margin: 6px 0 10px; color: var(--pr-gold); font: italic 400 12px/1 var(--pr-serif); letter-spacing: .3em; }
+.pr-sheet ul { margin: 0 0 18px; padding: 0; list-style: none; }
+.pr-sheet li button { display: grid; gap: 4px; width: 100%; padding: 12px 2px; border: 0; border-bottom: 1px solid rgb(201 163 90 / 14%); background: none; color: var(--pr-ink); font-family: var(--pr-serif); text-align: left; cursor: pointer; }
+.pr-sheet li b { font: 400 16px/1.2 var(--pr-serif); letter-spacing: .06em; }
+.pr-sheet li small { overflow: hidden; color: var(--pr-dim); font: italic 12px/1.3 var(--pr-serif); text-overflow: ellipsis; white-space: nowrap; }
+.pr-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin: 4px 0 14px; color: var(--pr-dim); font: 12px/1 var(--pr-serif); letter-spacing: .14em; }
+.pr-controls label { display: flex; align-items: center; gap: 10px; }
+.pr-tempo button { width: 28px; height: 28px; padding: 0; border: 1px solid rgb(201 163 90 / 45%); border-radius: 50%; background: none; color: var(--pr-gold); font-size: 15px; cursor: pointer; }
+.pr-tempo em { min-width: 3em; color: var(--pr-ink); font-style: normal; text-align: center; font-variant-numeric: tabular-nums; }
+.pr-volume input { width: 120px; accent-color: var(--pr-gold); }
+.pr-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.pr-chips button { padding: 8px 14px; border: 1px solid rgb(201 163 90 / 40%); border-radius: 999px; background: none; color: var(--pr-ink); font: 13px/1 var(--pr-serif); letter-spacing: .1em; cursor: pointer; }
+.pr-chips button.is-on { border-color: var(--pr-gold); background: rgb(201 163 90 / 16%); color: var(--pr-gold); }
+
+/* playing by hand: two octaves of ivory and ebony along the bottom */
+.pr-hands { position: absolute; inset: auto 0 0; z-index: 4; padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 12px); background: linear-gradient(180deg, transparent, rgb(4 3 2 / 92%) 30%); animation: pr-rise .45s cubic-bezier(.2, .85, .2, 1); }
+@keyframes pr-rise { from { translate: 0 100%; } }
+.pr-hands-bar { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; color: var(--pr-dim); font: italic 12px/1 var(--pr-serif); letter-spacing: .14em; }
+.pr-hands-bar button { min-width: 30px; height: 30px; padding: 0 10px; border: 1px solid rgb(201 163 90 / 45%); border-radius: 999px; background: none; color: var(--pr-gold); font: 14px/1 var(--pr-serif); cursor: pointer; }
+.pr-hands-bar .pr-pedal.is-on { background: rgb(201 163 90 / 22%); }
+.pr-keys { position: relative; height: 150px; max-width: 760px; margin: 0 auto; border-top: 3px solid #2a140a; border-radius: 3px; box-shadow: 0 -2px 0 var(--pr-gold) inset; touch-action: none; }
+.pr-white { position: absolute; top: 0; bottom: 0; padding: 0; border: 0; border-right: 1px solid #b9ab92; border-radius: 0 0 5px 5px; background: linear-gradient(180deg, #e8dcc2, #f8f0dd 70%, #e4d6b8); box-shadow: inset 0 -6px 0 rgb(0 0 0 / 8%); cursor: pointer; }
+.pr-white:active { background: linear-gradient(180deg, #dccfae, #efe2c3); box-shadow: inset 0 -2px 0 rgb(0 0 0 / 10%), 0 0 18px rgb(255 179 92 / 35%); }
+.pr-black { position: absolute; top: 0; z-index: 1; width: 4.2%; height: 62%; padding: 0; border: 0; border-radius: 0 0 4px 4px; background: linear-gradient(180deg, #0b0a09, #2a2622 85%, #151311); box-shadow: 0 3px 4px rgb(0 0 0 / 55%); translate: -50% 0; cursor: pointer; }
+.pr-black:active { height: 60%; background: linear-gradient(180deg, #1a1612, #3a2f22); box-shadow: 0 0 14px rgb(255 179 92 / 40%); }
+
+@media (prefers-reduced-motion: reduce) { .pr-sheet, .pr-now, .pr-hands { transition: none; animation: none; } }
+
+/* 点歌: a hairline field and a gold word */
+.pr-ask { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; padding: 4px 0 8px; border-bottom: 1px solid rgb(201 163 90 / 45%); }
+.pr-ask input { flex: 1; min-width: 0; padding: 8px 0; border: 0; background: none; color: var(--pr-ink); font: italic 17px/1.2 var(--pr-serif); letter-spacing: .06em; outline: none; user-select: text; -webkit-user-select: text; }
+.pr-ask input::placeholder { color: rgb(233 220 195 / 38%); }
+.pr-ask button { padding: 6px 14px; border: 1px solid var(--pr-gold); border-radius: 999px; background: none; color: var(--pr-gold); font: 13px/1 var(--pr-serif); letter-spacing: .2em; cursor: pointer; }
+.pr-ask button:disabled { opacity: .4; cursor: default; }
+.pr-ask-note { margin: 0 0 14px; color: var(--pr-dim); font: italic 12px/1.5 var(--pr-serif); letter-spacing: .06em; }
