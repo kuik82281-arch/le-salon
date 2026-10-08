@@ -509,7 +509,7 @@ export function createPiano(): PianoModel {
     const rTube = (pts: number[][], r: number, mat: T.Material, closed = false) => deskBins.push([new T.TubeGeometry(new T.CatmullRomCurve3(pts.map((p) => new T.Vector3(...p)), closed), Math.max(8, pts.length * 3), r, 5, closed), mat]);
     deskBins.push([new T.BoxGeometry(1.2, 0.024, 0.085).translate(0, 0, 0.005), dark]);
     deskBins.push([new T.BoxGeometry(1.2, 0.008, 0.01).translate(0, 0.016, 0.05), gold]);
-    for (const [cx, cy, r] of [[0, 0.23, 0.235], [-0.4, 0.16, 0.17], [0.4, 0.16, 0.17]] as const) {
+    for (const [cx, cy, r] of [[0, 0.23, 0.235], [-0.37, 0.145, 0.14], [0.37, 0.145, 0.14]] as const) {
       const ringPts: number[][] = [];
       for (let j = 0; j < 65; j++) { const a = (j * TAU) / 64; ringPts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0]); }
       rTube(ringPts, 0.01, wood, true);
