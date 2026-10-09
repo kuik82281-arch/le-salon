@@ -5,13 +5,41 @@
 //   POST /api/piano/play            { title, note?, bpm?, voices? | notes? } -> { performance }   the AI plays a piece it wrote
 //   POST /api/piano/request         { song, by?, note? }    -> { performance }   a song by name: Qwen finds the MIDI
 //   GET  /api/updates               event stream: `piano` { performance } whenever something is played
+//   POST /api/chat                  { messages, context? } -> { reply }   the chat window: any OpenAI-compatible model
 //
 // PORT (7532), DATA_DIR (./data), SALON_TOKEN (Bearer for POSTs, if set), OLLAMA_URL and SALON_QWEN_MODEL come from
-// the environment.
+// the environment; the chat window's model from CHAT_BASE_URL (an OpenAI-compatible /v1, default: the local Ollama),
+// CHAT_MODEL (default SALON_QWEN_MODEL or qwen2.5:3b), CHAT_API_KEY and CHAT_SYSTEM (who it is).
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { SalonError, onPerformance, playPiece, recentPerformances, requestSong } from './store.ts';
+
+const CHAT_BASE = (process.env.CHAT_BASE_URL ?? `${process.env.OLLAMA_URL ?? 'http://127.0.0.1:11434'}/v1`).replace(/\/$/, '');
+const CHAT_MODEL = process.env.CHAT_MODEL ?? process.env.SALON_QWEN_MODEL ?? 'qwen2.5:3b';
+const CHAT_SYSTEM = process.env.CHAT_SYSTEM ?? '你在一间只有一架三角钢琴的琴室里，陪对方一边听琴一边聊天。说话简短、自然。';
+
+/** The chat window: the last 20 messages and what is playing go to an OpenAI-compatible chat/completions. */
+async function chat(body: Record<string, unknown>) {
+  const messages = (Array.isArray(body.messages) ? body.messages : [])
+    .filter((m): m is { role: 'user' | 'assistant'; content: string } => !!m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .slice(-20)
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
+  if (!messages.length) throw new SalonError('messages is empty');
+  const context = (body.context ?? {}) as { playing?: unknown; by?: unknown };
+  const playing = typeof context.playing === 'string' && context.playing ? `
+现在琴上在弹：${context.playing.slice(0, 80)}${typeof context.by === 'string' ? `（${context.by.slice(0, 40)}）` : ''}。` : '';
+  const r = await fetch(`${CHAT_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(process.env.CHAT_API_KEY ? { authorization: `Bearer ${process.env.CHAT_API_KEY}` } : {}) },
+    body: JSON.stringify({ model: CHAT_MODEL, messages: [{ role: 'system', content: CHAT_SYSTEM + playing }, ...messages] }),
+    signal: AbortSignal.timeout(90_000),
+  }).catch(() => { throw new SalonError(`连不上聊天模型（${CHAT_BASE}）：设好 CHAT_BASE_URL / CHAT_MODEL，或开着 Ollama`); });
+  const data = await r.json().catch(() => null) as { choices?: { message?: { content?: string } }[]; error?: { message?: string } } | null;
+  const reply = data?.choices?.[0]?.message?.content?.trim();
+  if (!r.ok || !reply) throw new SalonError(`聊天模型没有回答：${data?.error?.message ?? r.status}`);
+  return { reply };
+}
 
 const PORT = Number(process.env.PORT ?? 7532);
 const TOKEN = process.env.SALON_TOKEN ?? '';
@@ -60,6 +88,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     if (by === 'ai' && TOKEN && req.headers.authorization !== `Bearer ${TOKEN}`) return send(res, 401, { error: 'unauthorized' });
     return send(res, 200, { performance: await requestSong({ song: String(body.song ?? ''), by, note: typeof body.note === 'string' ? body.note : undefined }) });
   }
+  if (req.method === 'POST' && p === '/api/chat') return send(res, 200, await chat(((await readJson(req)) ?? {}) as Record<string, unknown>));
   send(res, 404, { error: 'not found' });
 }
 

@@ -7,6 +7,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
   if (url.pathname.endsWith('/api/piano')) return json({ performances: [] });
   if (url.pathname.endsWith('/api/piano/request')) return json({ error: '试用页没有连服务器：点歌要在本地跑 npm run server，并装好 Ollama 的 qwen2.5:3b。' }, 400);
+  if (url.pathname.endsWith('/api/chat')) return json({ reply: '这是试用页，没有连模型。本地跑 npm run server，开着 Ollama（或设好 CHAT_BASE_URL / CHAT_MODEL / CHAT_API_KEY 接任何 OpenAI 兼容的模型），就能一边听琴一边和它聊。' });
   return realFetch(input, init);
 };
 

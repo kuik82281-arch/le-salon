@@ -22,7 +22,7 @@ down with the music. [English below](#english).
     搜 MIDI，再从结果里挑出真正是那首的文件，钢琴就开始弹。不用写谱，几乎不花 token；
   - 页面开着就会立刻开始弹（浏览器要求第一次出声前点一下，所以会出现「轻触 · 聆听」）。
 - **点歌**：面板里有一栏，自己输入歌名，同样由 Qwen 去找。
-- **亲手弹**：两个八度的琴键条（可以换八度、延音），电脑键盘也能弹（A–L 白键，W E T Y U O P 黑键，Z/X 换八度，空格延音）。
+- **亲手弹**：88 个键一次全摆在下面，不用翻页（带延音），电脑键盘也能弹（A–L 白键，W E T Y U O P 黑键，Z/X 换八度，空格延音）。
 - **声音**：合成的琴音（略微失谐的两根弦、毡锤的敲击声），加上音乐厅的混响。不是录音采样。
 
 ## 跑起来
@@ -66,6 +66,19 @@ GET  /api/updates          event stream: `piano` { performance }
 
 设了 `SALON_TOKEN` 的话，AI 的请求要带 `Authorization: Bearer <token>`。
 
+### 边听边聊（聊天小窗）
+
+琴室左下角有个小窗，可以一边听琴、一边和模型聊天（拖标题栏移动，点 – 收成小气泡）。它走 `POST /api/chat { messages, context }`，转给任何 OpenAI 兼容的模型，每次都附上"现在在弹什么"。默认用本地 Ollama 的 `qwen2.5:3b`；换别的模型设这几个环境变量：
+
+```
+CHAT_BASE_URL=https://api.example.com/v1   # OpenAI 兼容的 /v1
+CHAT_MODEL=your-model
+CHAT_API_KEY=...
+CHAT_SYSTEM=它是谁、怎么说话
+```
+
+想接自己的后台：`PianoRoom` 收一个 `chat` 适配器（`src/piano/SalonChat.tsx` 的 `SalonChatAdapter`，一个 `send(messages, context) => Promise<string>`）；不传就没有小窗。
+
 ## 谱子怎么写
 
 一行一只手（或一个声部），所有行同时从头开始；`bpm` 是速度（默认 90）。
@@ -98,10 +111,13 @@ beam. The keys go down with the music and glow a little when struck; tap a key t
 it writes in a compact notation (one line per hand), or `request` a song by name: a local Qwen model (Ollama,
 `qwen2.5:3b`) names it in English, searches the BitMidi archive, picks the file that really is that song, and the
 piano plays it — no score to write, almost no tokens. You can ask for songs in the panel too, and play by hand on a
-two-octave strip or your computer keyboard.
+strip of all 88 keys or your computer keyboard.
 
 **Run it.** Node.js 22.18+. `npm install`, then `npm run server` (API on :7532) and `npm run dev` (page on :5173), or
 `npm run build && npm start`. Song requests need Ollama with `qwen2.5:3b`.
+
+**Chat while it plays.** A small window talks to any OpenAI-compatible model via `POST /api/chat` (`CHAT_BASE_URL`,
+`CHAT_MODEL`, `CHAT_API_KEY`, `CHAT_SYSTEM`; default: local Ollama `qwen2.5:3b`), or pass your own `chat` adapter to `PianoRoom`.
 
 **Connect your AI.** Add `server/mcp.ts` as an MCP server (it calls the running HTTP server at `SALON_URL`); tools:
 `play`, `request`, `recent`. Or use the HTTP API above.

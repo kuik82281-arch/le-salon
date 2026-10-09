@@ -3,13 +3,16 @@ import { PianoAudio } from './audio';
 import { PianoPlayer, type PlayerState } from './player';
 import { DEMOS, type Score } from './score';
 import type { PianoStage } from './pianoStage';
+import SalonChat, { type SalonChatAdapter } from './SalonChat';
 import './piano-room.css';
 
 // 琴室: a grand piano alone on a dark stage under one spotlight (pianoStage.ts). The page is almost only the stage: a back
 // button, the room's name, what is playing with a thin gold line of progress, and one gold button that brings the
 // panel up (what was played, the pieces, tempo, volume, the lid, the view, playing by hand). When the AI plays (its
 // piano tool, server/mcp.ts or the HTTP API) the piece arrives on /api/updates and starts at once, keys moving; if the
-// sound is still locked (browsers need a first tap) a quiet 轻触聆听 waits for her. Classes carry the pr- prefix.
+// sound is still locked (browsers need a first tap) a quiet 轻触聆听 waits for her. Playing by hand is all 88 keys along
+// the bottom at once (no pages: you cannot turn one while playing). Given a chat adapter, a small window floats on the left to talk while
+// it plays (SalonChat.tsx; the open-source Le Salon passes one). Classes carry the pr- prefix.
 
 type Performance = { id: string; by: 'ai' | 'user'; via?: 'hand' | 'qwen'; title: string; note: string; createdAt: string; score: Score };
 /** Who the piece came from, for the programme line. */
@@ -18,11 +21,14 @@ type Now = { title: string; by: string; note?: string };
 
 const WHITE_KEYS = 'ASDFGHJKL';
 const BLACK_KEYS: Record<string, number> = { W: 1, E: 3, T: 6, Y: 8, U: 10, O: 13, P: 15 };
+const IS_BLACK = (m: number) => [1, 3, 6, 8, 10].includes(m % 12);
+/** The whole keyboard, A0 to C8, low to high. */
+const ALL_WHITES = Array.from({ length: 88 }, (_, i) => 21 + i).filter((m) => !IS_BLACK(m));
 const WHITE_STEPS = [0, 2, 4, 5, 7, 9, 11, 12, 14];
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const dateLabel = (iso: string) => { const d = new Date(iso); return `${d.getMonth() + 1}月${d.getDate()}日`; };
 
-export default function PianoRoom({ onBack }: { onBack: () => void }) {
+export default function PianoRoom({ onBack, chat }: { onBack: () => void; chat?: SalonChatAdapter }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<PianoStage | null>(null);
   const audioRef = useRef(new PianoAudio());
@@ -178,9 +184,12 @@ export default function PianoRoom({ onBack }: { onBack: () => void }) {
 
   const playing = state?.state === 'playing';
   const progress = state && state.duration ? Math.min(1, state.position / state.duration) : 0;
-  const stripStart = (octave + 1) * 12;
-  const stripWhites: number[] = [];
-  for (let m = stripStart; m < stripStart + 25; m++) if (![1, 3, 6, 8, 10].includes(m % 12)) stripWhites.push(m);
+  const keyProps = (m: number) => ({
+    onPointerDown: (e: React.PointerEvent) => { e.stopPropagation(); void handOn(`p${e.pointerId}`, m); },
+    onPointerUp: (e: React.PointerEvent) => handOff(`p${e.pointerId}`),
+    onPointerCancel: (e: React.PointerEvent) => handOff(`p${e.pointerId}`),
+    onPointerLeave: (e: React.PointerEvent) => handOff(`p${e.pointerId}`),
+  });
 
   return (
     <div className="pr-page">
@@ -196,7 +205,7 @@ export default function PianoRoom({ onBack }: { onBack: () => void }) {
       </header>
 
       {now && (
-        <section className={`pr-now${panel || hands ? ' is-raised' : ''}`} aria-live="polite">
+        <section className={`pr-now${panel ? ' is-raised' : ''}${hands ? ' is-raised' : ''}`} aria-live="polite">
           <small>{now.by}</small>
           <b>{now.title}</b>
           {now.note && <p>{now.note}</p>}
@@ -283,40 +292,24 @@ export default function PianoRoom({ onBack }: { onBack: () => void }) {
       {hands && (
         <div className="pr-hands" onContextMenu={(e) => e.preventDefault()}>
           <div className="pr-hands-bar">
-            <button type="button" onClick={() => setOctave((o) => Math.max(1, o - 1))} aria-label="低八度">‹</button>
-            <span>C{octave} – C{octave + 2}</span>
-            <button type="button" onClick={() => setOctave((o) => Math.min(6, o + 1))} aria-label="高八度">›</button>
+            <span>键盘 A–L · Z/X 换八度 C{octave}</span>
             <button type="button" className={`pr-pedal${sustain ? ' is-on' : ''}`} onPointerDown={() => { setSustain(true); playerRef.current?.setSustain(true); }} onPointerUp={() => { setSustain(false); playerRef.current?.setSustain(false); }} onPointerLeave={() => { if (sustain) { setSustain(false); playerRef.current?.setSustain(false); } }}>延音</button>
             <button type="button" onClick={() => setHands(false)} aria-label="收起琴键">×</button>
           </div>
           <div className="pr-keys">
-            {stripWhites.map((m, i) => (
-              <button
-                key={m}
-                type="button"
-                className="pr-white"
-                style={{ left: `${(i / stripWhites.length) * 100}%`, width: `${100 / stripWhites.length}%` }}
-                onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); void handOn(`p${e.pointerId}`, m); }}
-                onPointerUp={(e) => handOff(`p${e.pointerId}`)}
-                onPointerCancel={(e) => handOff(`p${e.pointerId}`)}
-                aria-label={`${m}`}
-              />
+            {ALL_WHITES.map((m, i) => (
+              <button key={m} type="button" className="pr-white" style={{ left: `${(i / ALL_WHITES.length) * 100}%`, width: `${100 / ALL_WHITES.length}%` }} {...keyProps(m)} aria-label={`${m}`}>
+                {m % 12 === 0 && <small>C{m / 12 - 1}</small>}
+              </button>
             ))}
-            {stripWhites.slice(0, -1).map((m, i) => ([1, 3, 6, 8, 10].includes((m + 1) % 12) ? (
-              <button
-                key={`b${m}`}
-                type="button"
-                className="pr-black"
-                style={{ left: `${((i + 1) / stripWhites.length) * 100}%` }}
-                onPointerDown={(e) => { e.stopPropagation(); (e.target as HTMLElement).setPointerCapture(e.pointerId); void handOn(`p${e.pointerId}`, m + 1); }}
-                onPointerUp={(e) => handOff(`p${e.pointerId}`)}
-                onPointerCancel={(e) => handOff(`p${e.pointerId}`)}
-                aria-label={`${m + 1}`}
-              />
+            {ALL_WHITES.slice(0, -1).map((m, i) => (IS_BLACK(m + 1) ? (
+              <button key={`b${m}`} type="button" className="pr-black" style={{ left: `${((i + 1) / ALL_WHITES.length) * 100}%`, width: `${(100 / ALL_WHITES.length) * 0.62}%` }} {...keyProps(m + 1)} aria-label={`${m + 1}`} />
             ) : null))}
           </div>
         </div>
       )}
+
+      {chat && <SalonChat adapter={chat} context={now ? { playing: now.title, by: now.by } : {}} />}
     </div>
   );
 }
